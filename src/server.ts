@@ -144,6 +144,20 @@ ordersRouter.post('/', async (req, res) => {
 	}
 });
 
+async function deliverOrder(orderId: number) {
+	try {
+		const orders: Order[] = await db.getData('/orders');
+		const order = orders.find((order) => order.id === orderId);
+		if (!order || order.status !== 'shipped') return;
+
+		order.status = 'delivered';
+		await db.push('/orders', orders);
+		broadcast('order-status-updated', order);
+	} catch (error) {
+		console.error('Failed to deliver order:', error);
+	}
+}
+
 ordersRouter.post('/:id/next-status', async (req, res) => {
 	const orderId = Number(req.params.id);
 	if (!Number.isInteger(orderId) || orderId <= 0) return res.status(400).json({ message: 'Invalid order ID' });
@@ -163,6 +177,10 @@ ordersRouter.post('/:id/next-status', async (req, res) => {
 
 		await db.push('/orders', orders);
 		broadcast('order-status-updated', order);
+
+		// 20s after shipping, deliver the order
+		if (order.status === 'shipped') setTimeout(() => deliverOrder(order.id), 20_000);
+
 		res.status(200).json(order);
 	} catch (error) {
 		console.error('Failed to update order status:', error);
