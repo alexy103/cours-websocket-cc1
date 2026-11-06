@@ -119,7 +119,7 @@ ordersRouter.post('/', async (req, res) => {
 	}
 });
 
-ordersRouter.put('/:id/next-status', async (req, res) => {
+ordersRouter.post('/:id/next-status', async (req, res) => {
 	const orderId = Number(req.params.id);
 	if (!Number.isInteger(orderId) || orderId <= 0) return res.status(400).json({ message: 'Invalid order ID' });
 
@@ -141,5 +141,34 @@ ordersRouter.put('/:id/next-status', async (req, res) => {
 	} catch (error) {
 		console.error('Failed to update order status:', error);
 		res.status(500).json({ message: 'Failed to update order status' });
+	}
+});
+
+ordersRouter.post('/:id/cancel', async (req, res) => {
+	const orderId = Number(req.params.id);
+	if (!Number.isInteger(orderId) || orderId <= 0) return res.status(400).json({ message: 'Invalid order ID' });
+
+	try {
+		const orders: Order[] = await db.getData('/orders');
+		const order = orders.find((order) => order.id === orderId);
+		if (!order) return res.status(404).json({ message: 'Order not found' });
+
+		if (order.status !== 'preparing') {
+			return res.status(400).json({ message: `Order is ${order.status}, it cannot be cancelled` });
+		}
+
+		const products: Product[] = await db.getData('/products');
+		const product = products.find((product) => product.id === order.productId);
+		if (!product) return res.status(404).json({ message: 'Product not found' });
+
+		order.status = 'cancelled';
+		product.stock += order.quantity;
+
+		await db.push('/orders', orders);
+		await db.push('/products', products);
+		res.status(200).json(order);
+	} catch (error) {
+		console.error('Failed to cancel order:', error);
+		res.status(500).json({ message: 'Failed to cancel order' });
 	}
 });
