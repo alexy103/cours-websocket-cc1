@@ -75,3 +75,46 @@ ordersRouter.get('/:id', async (req, res) => {
 		res.status(500).json({ message: 'Failed to read order from database' });
 	}
 });
+
+ordersRouter.post('/', async (req, res) => {
+	const userId = Number(req.body.userId);
+	const productId = Number(req.body.productId);
+	const quantity = Number(req.body.quantity);
+
+	if (!Number.isInteger(userId) || !Number.isInteger(productId) || !Number.isInteger(quantity)) {
+		return res.status(400).json({ message: 'Invalid userId, productId or quantity' });
+	}
+
+	if (quantity <= 0) return res.status(400).json({ message: 'Quantity must be higher than 0 !' });
+
+	try {
+		const users: User[] = await db.getData('/users');
+		const user = users.find((user) => user.id === userId);
+		if (!user) return res.status(404).json({ message: 'User not found' });
+
+		const products: Product[] = await db.getData('/products');
+		const product = products.find((product) => product.id === productId);
+		if (!product) return res.status(404).json({ message: 'Product not found' });
+
+		if (product.stock < quantity) return res.status(400).json({ message: 'Insufficient stock' });
+
+		const orders: Order[] = await db.getData('/orders');
+		const order: Order = {
+			id: orders.length + 1,
+			userId,
+			productId,
+			quantity,
+			status: 'preparing',
+			createdAt: new Date().toISOString(),
+		};
+
+		product.stock -= quantity;
+		await db.push('/products', products);
+		await db.push('/orders[]', order);
+
+		res.status(201).json(order);
+	} catch (error) {
+		console.error('Failed to create order:', error);
+		res.status(500).json({ message: 'Failed to create order' });
+	}
+});
