@@ -1,4 +1,5 @@
 import express from 'express';
+import type { Response } from 'express';
 import { JsonDB, Config } from 'node-json-db';
 import type { User, Product, Order } from './types.js';
 
@@ -50,6 +51,27 @@ productsRouter.get('/', async (_req, res) => {
 const ordersRouter = express.Router();
 
 app.use('/api/orders', ordersRouter);
+
+// -- SSE --
+
+const clients = new Set<Response>();
+
+ordersRouter.get('/stream', (_req, res) => {
+	res.writeHead(200, {
+		'Content-Type': 'text/event-stream',
+		'Cache-Control': 'no-cache',
+		Connection: 'keep-alive',
+	});
+	res.flushHeaders();
+	clients.add(res);
+	res.on('close', () => clients.delete(res));
+});
+
+let eventId = 0;
+function broadcast(event: string, data: unknown) {
+	const msg = `id: ${++eventId}\nevent: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+	for (const res of clients) res.write(msg);
+}
 
 ordersRouter.get('/', async (_req, res) => {
 	try {
@@ -112,6 +134,9 @@ ordersRouter.post('/', async (req, res) => {
 		await db.push('/products', products);
 		await db.push('/orders[]', order);
 
+		broadcast('order-created', order);
+		broadcast('stock-updated', product);
+
 		res.status(201).json(order);
 	} catch (error) {
 		console.error('Failed to create order:', error);
@@ -137,6 +162,7 @@ ordersRouter.post('/:id/next-status', async (req, res) => {
 		}
 
 		await db.push('/orders', orders);
+		broadcast('order-status-updated', order);
 		res.status(200).json(order);
 	} catch (error) {
 		console.error('Failed to update order status:', error);
@@ -166,6 +192,8 @@ ordersRouter.post('/:id/cancel', async (req, res) => {
 
 		await db.push('/orders', orders);
 		await db.push('/products', products);
+		broadcast('order-cancelled', order);
+		broadcast('stock-updated', product);
 		res.status(200).json(order);
 	} catch (error) {
 		console.error('Failed to cancel order:', error);
