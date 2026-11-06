@@ -73,6 +73,29 @@ function broadcast(event: string, data: unknown) {
 	for (const res of clients) res.write(msg);
 }
 
+const orderClients = new Map<Response, number>();
+
+ordersRouter.get('/:id/stream', (req, res) => {
+	const orderId = Number(req.params.id);
+	res.writeHead(200, {
+		'Content-Type': 'text/event-stream',
+		'Cache-Control': 'no-cache',
+		Connection: 'keep-alive',
+	});
+	res.flushHeaders();
+	orderClients.set(res, orderId);
+	res.on('close', () => orderClients.delete(res));
+});
+
+// helper to avoid calling 2 functions each time
+function broadcastOrder(event: string, order: Order) {
+	broadcast(event, order);
+	const msg = `id: ${++eventId}\nevent: ${event}\ndata: ${JSON.stringify(order)}\n\n`;
+	for (const [res, id] of orderClients) {
+		if (id === order.id) res.write(msg);
+	}
+}
+
 ordersRouter.get('/', async (_req, res) => {
 	try {
 		const orders: Order[] = await db.getData('/orders');
@@ -134,7 +157,7 @@ ordersRouter.post('/', async (req, res) => {
 		await db.push('/products', products);
 		await db.push('/orders[]', order);
 
-		broadcast('order-created', order);
+		broadcastOrder('order-created', order);
 		broadcast('stock-updated', product);
 
 		res.status(201).json(order);
@@ -152,7 +175,7 @@ async function deliverOrder(orderId: number) {
 
 		order.status = 'delivered';
 		await db.push('/orders', orders);
-		broadcast('order-status-updated', order);
+		broadcastOrder('order-status-updated', order);
 	} catch (error) {
 		console.error('Failed to deliver order:', error);
 	}
@@ -176,7 +199,7 @@ ordersRouter.post('/:id/next-status', async (req, res) => {
 		}
 
 		await db.push('/orders', orders);
-		broadcast('order-status-updated', order);
+		broadcastOrder('order-status-updated', order);
 
 		// 20s after shipping, deliver the order
 		if (order.status === 'shipped') setTimeout(() => deliverOrder(order.id), 20_000);
@@ -210,7 +233,7 @@ ordersRouter.post('/:id/cancel', async (req, res) => {
 
 		await db.push('/orders', orders);
 		await db.push('/products', products);
-		broadcast('order-cancelled', order);
+		broadcastOrder('order-cancelled', order);
 		broadcast('stock-updated', product);
 		res.status(200).json(order);
 	} catch (error) {
