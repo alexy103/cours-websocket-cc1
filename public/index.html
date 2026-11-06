@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="fr">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Commandes</title>
+	</head>
+	<body>
+		<h1>Commandes</h1>
+		<ul id="orders-list"></ul>
+
+		<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+		<script>
+			$.get('/api/orders', (orders) => {
+				orders.forEach((order) => {
+					const link = $('<a>')
+						.attr('href', `/suivi.html?id=${order.id}`)
+						.text(`Commande #${order.id} — produit ${order.productId} x${order.quantity} — ${order.status}`);
+
+					$('<li>').append(link).appendTo('#orders-list');
+				});
+			});
+		</script>
+	</body>
+</html>

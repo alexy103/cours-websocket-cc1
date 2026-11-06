@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="fr">
+	<head>
+		<meta charset="UTF-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>Suivi de commande</title>
+	</head>
+	<body>
+		<a href="/">Retourner à l'accueil</a>
+		<h1 id="title">Commande</h1>
+		<p>Statut : <strong id="status">chargement…</strong></p>
+
+		<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+		<script>
+			const orderId = new URLSearchParams(window.location.search).get('id');
+			$('#title').text(`Commande #${orderId}`);
+
+			function showStatus(order) {
+				$('#status').text(order.status);
+			}
+
+			$.get(`/api/orders/${orderId}`)
+				.done(showStatus)
+				.fail(() => $('#status').text('commande introuvable'));
+
+			const source = new EventSource(`/api/orders/${orderId}/stream`);
+			source.addEventListener('order-status-updated', (e) => showStatus(JSON.parse(e.data)));
+			source.addEventListener('order-cancelled', (e) => showStatus(JSON.parse(e.data)));
+		</script>
+	</body>
+</html>
