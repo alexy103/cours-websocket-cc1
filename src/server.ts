@@ -118,3 +118,28 @@ ordersRouter.post('/', async (req, res) => {
 		res.status(500).json({ message: 'Failed to create order' });
 	}
 });
+
+ordersRouter.put('/:id/next-status', async (req, res) => {
+	const orderId = Number(req.params.id);
+	if (!Number.isInteger(orderId) || orderId <= 0) return res.status(400).json({ message: 'Invalid order ID' });
+
+	try {
+		const orders: Order[] = await db.getData('/orders');
+		const order = orders.find((order) => order.id === orderId);
+		if (!order) return res.status(404).json({ message: 'Order not found' });
+
+		if (order.status === 'preparing') {
+			order.status = 'shipped';
+		} else if (order.status === 'shipped') {
+			order.status = 'delivered';
+		} else {
+			return res.status(400).json({ message: `Order is ${order.status}, it cannot move forward` });
+		}
+
+		await db.push('/orders', orders);
+		res.status(200).json(order);
+	} catch (error) {
+		console.error('Failed to update order status:', error);
+		res.status(500).json({ message: 'Failed to update order status' });
+	}
+});
