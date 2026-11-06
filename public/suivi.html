@@ -10,18 +10,24 @@
 		<h1 id="title">Commande</h1>
 		<p>Statut : <strong id="status">chargement…</strong></p>
 
-		<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 		<script>
 			const orderId = new URLSearchParams(window.location.search).get('id');
-			$('#title').text(`Commande #${orderId}`);
+			document.getElementById('title').textContent = `Commande #${orderId}`;
 
 			function showStatus(order) {
-				$('#status').text(order.status);
+				document.getElementById('status').textContent = order.status;
 			}
 
-			$.get(`/api/orders/${orderId}`)
-				.done(showStatus)
-				.fail(() => $('#status').text('commande introuvable'));
+			async function loadOrder() {
+				const res = await fetch(`/api/orders/${orderId}`);
+				if (!res.ok) {
+					document.getElementById('status').textContent = 'commande introuvable';
+					return;
+				}
+				showStatus(await res.json());
+			}
+
+			loadOrder();
 
 			const source = new EventSource(`/api/orders/${orderId}/stream`);
 			source.addEventListener('order-status-updated', (e) => showStatus(JSON.parse(e.data)));

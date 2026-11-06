@@ -9,17 +9,24 @@
 		<h1>Commandes</h1>
 		<ul id="orders-list"></ul>
 
-		<script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
 		<script>
-			$.get('/api/orders', (orders) => {
-				orders.forEach((order) => {
-					const link = $('<a>')
-						.attr('href', `/suivi.html?id=${order.id}`)
-						.text(`Commande #${order.id} — produit ${order.productId} x${order.quantity} — ${order.status}`);
+			async function loadOrders() {
+				const res = await fetch('/api/orders');
+				const orders = await res.json();
 
-					$('<li>').append(link).appendTo('#orders-list');
+				const list = document.getElementById('orders-list');
+				orders.forEach((order) => {
+					const link = document.createElement('a');
+					link.href = `/suivi.html?id=${order.id}`;
+					link.textContent = `Commande #${order.id} — produit ${order.productId} x${order.quantity} — ${order.status}`;
+
+					const li = document.createElement('li');
+					li.appendChild(link);
+					list.appendChild(li);
 				});
-			});
+			}
+
+			loadOrders();
 		</script>
 	</body>
 </html>
